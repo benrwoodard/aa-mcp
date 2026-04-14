@@ -23,8 +23,9 @@ install.packages(c("adobeanalyticsr", "jsonlite"))
    cd aa_mcp
    ```
 
-2. **Add to your Claude Code `settings.json`**
+2. **Add to your Claude Code `settings.json`** — pick one auth method:
 
+   **OAuth** (default — interactive browser login, good for personal use):
    ```json
    {
      "mcpServers": {
@@ -41,7 +42,27 @@ install.packages(c("adobeanalyticsr", "jsonlite"))
    }
    ```
 
-   On Windows use a backslash path, e.g. `C:\\Users\\you\\aa_mcp`.
+   **Server-to-Server / S2S** (non-interactive, good for teams and automation):
+   ```json
+   {
+     "mcpServers": {
+       "adobe-analytics": {
+         "command": "uv",
+         "args": ["--directory", "/path/to/aa_mcp", "run", "server.py"],
+         "env": {
+           "AW_AUTH_TYPE": "s2s",
+           "AW_AUTH_FILE": "/path/to/adobe-credentials.json",
+           "AW_COMPANY_ID": "your-company-id"
+         }
+       }
+     }
+   }
+   ```
+
+   The S2S credentials JSON is downloaded from the Adobe Developer Console:
+   **Console → your project → OAuth Server-to-Server → Download JSON**
+
+   On Windows use backslash paths, e.g. `C:\\Users\\you\\aa_mcp`.
 
 3. **Restart Claude Code** — the server will start automatically.
 

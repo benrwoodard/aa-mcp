@@ -2,6 +2,9 @@
 *.oauth
 .oauth
 
+# S2S credentials JSON downloaded from Adobe Developer Console
+adobe-credentials*.json
+
 # Local environment variables
 .env
 

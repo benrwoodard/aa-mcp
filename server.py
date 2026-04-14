@@ -10,6 +10,20 @@ from fastmcp import FastMCP
 mcp = FastMCP("Adobe Analytics MCP Server")
 
 # ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+# OAuth (default) — set in MCP server env:
+#   AW_AUTH_TYPE=oauth  (or omit)
+#   AW_CLIENT_ID=...
+#   AW_CLIENT_SECRET=...
+#   AW_COMPANY_ID=...
+#
+# Server-to-Server (S2S) — no browser login, suited for shared/automated use:
+#   AW_AUTH_TYPE=s2s
+#   AW_AUTH_FILE=/path/to/adobe-credentials.json   ← downloaded from Adobe Developer Console
+#   AW_COMPANY_ID=...
+#
+# ---------------------------------------------------------------------------
 # Guardrail constants
 # ---------------------------------------------------------------------------
 MAX_DATE_RANGE_DAYS = 365

@@ -3,9 +3,18 @@
 # Thin wrapper around adobeanalyticsr for MCP server
 # Accepts CLI args, authenticates via env vars, outputs JSON to stdout
 #
-# Required env vars:
-#   AW_CLIENT_ID       - Adobe OAuth client ID
-#   AW_CLIENT_SECRET   - Adobe OAuth client secret
+# Authentication (choose one):
+#
+#   OAuth (default):
+#     AW_AUTH_TYPE     = "oauth"  (or omit — this is the default)
+#     AW_CLIENT_ID     - Adobe OAuth client ID
+#     AW_CLIENT_SECRET - Adobe OAuth client secret
+#
+#   Server-to-Server (S2S):
+#     AW_AUTH_TYPE     = "s2s"
+#     AW_AUTH_FILE     - Path to credentials JSON downloaded from Adobe Developer Console
+#
+# Required for all auth types:
 #   AW_COMPANY_ID      - Adobe Analytics company ID
 #
 # Optional:
@@ -17,7 +26,15 @@ suppressPackageStartupMessages({
 })
 
 # Authenticate once on startup using env vars
-aw_auth(type = "oauth")
+# Set AW_AUTH_TYPE=s2s to use Server-to-Server auth (requires AW_AUTH_FILE)
+# Default is oauth (requires AW_CLIENT_ID + AW_CLIENT_SECRET)
+auth_type <- Sys.getenv("AW_AUTH_TYPE", unset = "oauth")
+if (auth_type == "s2s") {
+  aw_auth_with("s2s")
+  aw_auth()
+} else {
+  aw_auth(type = "oauth")
+}
 
 args <- commandArgs(trailingOnly = TRUE)
 

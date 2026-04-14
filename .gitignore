@@ -1,0 +1,14 @@
+# OAuth token cache — contains credentials, never commit
+*.oauth
+.oauth
+
+# Local environment variables
+.env
+
+# Python virtualenv
+.venv/
+
+# R session artifacts
+.Rhistory
+.RData
+.Rproj.user/

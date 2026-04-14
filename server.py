@@ -97,6 +97,16 @@ def _parse_csv(value: str, label: str, max_count: int) -> list[str]:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
+def list_users() -> list:
+    """List all Adobe Analytics users in the company.
+
+    Returns:
+        list: User objects with login, firstName, lastName, email, and imsUserId fields.
+    """
+    return _run_r("list_users")
+
+
+@mcp.tool()
 def list_report_suites() -> list:
     """List all available Adobe Analytics report suites.
 
@@ -236,6 +246,7 @@ def build_segment(
     rules: list[dict],
     context: str = "hits",
     conjunction: str = "and",
+    owner_id: Optional[int] = 201002385,
 ) -> dict:
     """Create a new segment in Adobe Analytics.
 
@@ -260,6 +271,8 @@ def build_segment(
                        "visits"         — entire visit sessions
                        "visitors"       — all sessions across visitor lifetime
         conjunction: How top-level rules are combined: "and" (default) or "or".
+        owner_id:    Adobe Analytics user ID to assign as segment owner.
+                     Defaults to DEFAULT_OWNER_ID. Pass None to omit.
 
     Returns:
         dict: Created segment metadata including id, name, and rsid.
@@ -289,7 +302,8 @@ def build_segment(
         raise ValueError(f"conjunction must be one of {VALID_CONJUNCTIONS}")
 
     rules_json = json.dumps(rules)
-    return _run_r("create_segment", rsid, name, description, rules_json, context, conjunction)
+    owner_arg = str(owner_id) if owner_id is not None else "NA"
+    return _run_r("create_segment", rsid, name, description, rules_json, context, conjunction, owner_arg)
 
 
 # ---------------------------------------------------------------------------

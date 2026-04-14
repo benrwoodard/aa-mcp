@@ -124,7 +124,7 @@ if (command == "list_report_suites") {
 # ---------------------------------------------------------------------------
 } else if (command == "create_segment") {
   if (length(args) < 7) {
-    stop("Usage: create_segment rsid name description rules_json context conjunction")
+    stop("Usage: create_segment rsid name description rules_json context conjunction [owner_id]")
   }
   rsid        <- args[2]
   name        <- args[3]
@@ -132,6 +132,7 @@ if (command == "list_report_suites") {
   rules_json  <- args[5]
   context     <- args[6]
   conjunction <- args[7]
+  owner_id    <- if (length(args) >= 8 && args[8] != "NA") as.integer(args[8]) else NULL
 
   rules_data <- fromJSON(rules_json, simplifyDataFrame = FALSE)
 
@@ -164,7 +165,7 @@ if (command == "list_report_suites") {
     if (!is.null(r$container)) build_container(r$container) else build_rule(r)
   })
 
-  result <- seg_build(
+  seg_args <- list(
     name        = name,
     description = description,
     rules       = items,
@@ -174,6 +175,8 @@ if (command == "list_report_suites") {
     rsid        = rsid,
     company_id  = Sys.getenv("AW_COMPANY_ID")
   )
+  if (!is.null(owner_id)) seg_args$owner <- list(id = owner_id)
+  result <- do.call(seg_build, seg_args)
   cat(toJSON(result, auto_unbox = TRUE, dataframe = "rows"))
 
 # ---------------------------------------------------------------------------
@@ -207,7 +210,7 @@ if (command == "list_report_suites") {
   result <- cm_build(
     name        = name,
     description = description,
-    formula     = list(formula),
+    formula     = formula,
     polarity    = polarity,
     precision   = precision,
     type        = type,
@@ -253,6 +256,14 @@ if (command == "list_report_suites") {
   )
 
   cat(toJSON(report, auto_unbox = TRUE, dataframe = "rows"))
+
+# ---------------------------------------------------------------------------
+# list_users  (no extra args)
+# ---------------------------------------------------------------------------
+} else if (command == "list_users") {
+  users <- get_users(company_id = Sys.getenv("AW_COMPANY_ID"))
+  cols <- intersect(c("login", "firstName", "lastName", "email", "imsUserId"), colnames(users))
+  cat(toJSON(users[, cols], auto_unbox = TRUE, dataframe = "rows"))
 
 } else {
   stop(paste("Unknown command:", command))

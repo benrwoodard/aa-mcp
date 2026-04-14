@@ -17,6 +17,17 @@ MAX_METRICS = 10
 MAX_DIMENSIONS = 5
 MAX_TOP = 200
 
+VALID_SEGMENT_VERBS = [
+    "eq", "not-eq", "contains", "not-contains", "starts-with", "ends-with",
+    "exists", "not-exists", "gt", "lt", "ge", "le", "match", "not-match",
+    "eq-any-of", "not-eq-any-of", "contains-any-of", "not-contains-any-of",
+]
+VALID_CONTEXTS = ["hits", "visits", "visitors"]
+VALID_CONJUNCTIONS = ["and", "or"]
+VALID_CM_OPERATORS = ["divide", "multiply", "subtract", "add"]
+VALID_CM_TYPES = ["decimal", "percent", "currency", "time"]
+VALID_CM_POLARITY = ["positive", "negative"]
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -31,7 +42,6 @@ def _run_r(command: str, *args: str) -> dict | list:
     cmd = [_rscript_path(), r_script, command] + list(args)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        # Surface the R stderr to the caller without leaking credentials
         stderr = result.stderr.strip()
         raise RuntimeError(f"R error: {stderr}")
     try:
@@ -69,7 +79,7 @@ def _parse_csv(value: str, label: str, max_count: int) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Tools
+# Tools — Data discovery
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -81,6 +91,77 @@ def list_report_suites() -> list:
     """
     return _run_r("list_report_suites")
 
+
+@mcp.tool()
+def list_dimensions(rsid: str) -> list:
+    """List all available dimensions for a report suite.
+
+    Args:
+        rsid: Report suite ID (use list_report_suites if unknown).
+
+    Returns:
+        list: Dimension objects with id and name fields.
+    """
+    if not rsid:
+        raise ValueError("rsid must be a non-empty string")
+    return _run_r("list_dimensions", rsid)
+
+
+@mcp.tool()
+def list_metrics(rsid: str) -> list:
+    """List all available standard (non-calculated) metrics for a report suite.
+
+    Args:
+        rsid: Report suite ID (use list_report_suites if unknown).
+
+    Returns:
+        list: Metric objects with id and name fields.
+    """
+    if not rsid:
+        raise ValueError("rsid must be a non-empty string")
+    return _run_r("list_metrics", rsid)
+
+
+@mcp.tool()
+def list_segments(rsid: Optional[str] = None) -> list:
+    """List available segments, optionally filtered to a specific report suite.
+
+    Args:
+        rsid: Optional report suite ID to filter segments. Omit to list all.
+
+    Returns:
+        list: Segment objects with id, name, description, and rsid fields.
+    """
+    return _run_r("list_segments", rsid if rsid else "NA")
+
+
+@mcp.tool()
+def list_calculated_metrics(rsid: Optional[str] = None) -> list:
+    """List available calculated metrics, optionally filtered to a report suite.
+
+    Args:
+        rsid: Optional report suite ID to filter. Omit to list all.
+
+    Returns:
+        list: Calculated metric objects with id, name, description, and rsid fields.
+    """
+    return _run_r("list_calculated_metrics", rsid if rsid else "NA")
+
+
+@mcp.tool()
+def get_cm_functions() -> list:
+    """List all available functions that can be used in calculated metrics
+    (e.g. col-sum, col-max, mean, variance, etc.).
+
+    Returns:
+        list: Function objects with id, name, description, and category fields.
+    """
+    return _run_r("get_cm_functions")
+
+
+# ---------------------------------------------------------------------------
+# Tools — Reporting
+# ---------------------------------------------------------------------------
 
 @mcp.tool()
 def run_adobe_report(
@@ -113,11 +194,6 @@ def run_adobe_report(
     Returns:
         dict: Tabular report data as a list of row objects, one per
               dimension combination, with metric values as numeric fields.
-
-    Examples:
-        run_adobe_report("myrsid", "pageviews,visits", "page", "2024-01-01--2024-01-31")
-        run_adobe_report("myrsid", "revenue", "lasttouchchannel,mobiledevicetype",
-                         "2024-03-01--2024-03-31", top=25)
     """
     if not rsid or not isinstance(rsid, str):
         raise ValueError("rsid must be a non-empty string")
@@ -132,6 +208,153 @@ def run_adobe_report(
     seg_arg = segment_id if segment_id else "NA"
 
     return _run_r("run_report", rsid, metrics, dimensions, date_range, str(top), seg_arg)
+
+
+# ---------------------------------------------------------------------------
+# Tools — Segment builder
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def build_segment(
+    rsid: str,
+    name: str,
+    description: str,
+    rules: list[dict],
+    context: str = "hits",
+    conjunction: str = "and",
+) -> dict:
+    """Create a new segment in Adobe Analytics.
+
+    Args:
+        rsid:        Report suite ID the segment is built for.
+        name:        Display name for the new segment.
+        description: Brief description of what the segment captures.
+        rules:       List of rule objects. Each rule must have:
+                       - "dimension" OR "metric" (not both): the API id to filter on
+                       - "verb": comparison operator. Common values:
+                           eq, not-eq, contains, not-contains,
+                           starts-with, ends-with, exists, not-exists,
+                           gt, lt, ge, le, match, not-match,
+                           eq-any-of, not-eq-any-of
+                       - "object": the value to compare against
+                     Optionally:
+                       - "attribution": "repeating" (default), "instance", or "nonrepeating"
+                     To group rules into a nested container, pass an object with key
+                     "container" containing: context, conjunction, rules, exclude (bool).
+        context:     Scope of the top-level container:
+                       "hits" (default) — individual page views/events
+                       "visits"         — entire visit sessions
+                       "visitors"       — all sessions across visitor lifetime
+        conjunction: How top-level rules are combined: "and" (default) or "or".
+
+    Returns:
+        dict: Created segment metadata including id, name, and rsid.
+
+    Examples:
+        # Visitors who viewed the home page
+        rules=[{"dimension": "page", "verb": "eq", "object": "home"}]
+
+        # Mobile visitors from the US
+        rules=[
+            {"dimension": "mobiledevicetype", "verb": "eq", "object": "Mobile Phone"},
+            {"dimension": "geocountry", "verb": "eq", "object": "United States"}
+        ]
+
+        # Visits with more than 3 page views (metric rule)
+        rules=[{"metric": "pageviews", "verb": "gt", "object": "3"}], context="visits"
+    """
+    if not rsid:
+        raise ValueError("rsid must be a non-empty string")
+    if not name:
+        raise ValueError("name must be a non-empty string")
+    if not rules:
+        raise ValueError("at least one rule must be provided")
+    if context not in VALID_CONTEXTS:
+        raise ValueError(f"context must be one of {VALID_CONTEXTS}")
+    if conjunction not in VALID_CONJUNCTIONS:
+        raise ValueError(f"conjunction must be one of {VALID_CONJUNCTIONS}")
+
+    rules_json = json.dumps(rules)
+    return _run_r("create_segment", rsid, name, description, rules_json, context, conjunction)
+
+
+# ---------------------------------------------------------------------------
+# Tools — Calculated metric builder
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def build_calculated_metric(
+    rsid: str,
+    name: str,
+    description: str,
+    operator: str,
+    metric1: str,
+    metric2: Optional[str] = None,
+    polarity: str = "positive",
+    precision: int = 0,
+    type: str = "decimal",
+) -> dict:
+    """Create a new calculated metric in Adobe Analytics.
+
+    Use get_cm_functions to see available advanced functions.
+    Use list_metrics to look up valid metric API ids.
+
+    Args:
+        rsid:        Report suite ID the calculated metric is built for.
+        name:        Display name for the new calculated metric.
+        description: Brief description of what the metric measures.
+        operator:    Math operation between metric1 and metric2:
+                       "divide"   — metric1 / metric2 (e.g., conversion rate)
+                       "multiply" — metric1 * metric2
+                       "subtract" — metric1 - metric2
+                       "add"      — metric1 + metric2
+        metric1:     API id of the primary metric (e.g., "orders").
+        metric2:     API id of the secondary metric (e.g., "visits").
+                     Required for divide/multiply/subtract/add.
+        polarity:    Trend direction that is considered good:
+                       "positive" (default) — higher values are better (e.g., revenue)
+                       "negative"           — lower values are better (e.g., bounce rate)
+        precision:   Decimal places to display (0–10, default 0).
+        type:        Display format:
+                       "decimal"  (default), "percent", "currency", "time"
+
+    Returns:
+        dict: Created calculated metric metadata including id, name, and rsid.
+
+    Examples:
+        # Conversion rate (orders / visits)
+        operator="divide", metric1="orders", metric2="visits",
+        type="percent", precision=2, polarity="positive"
+
+        # Revenue per visit
+        operator="divide", metric1="revenue", metric2="visits",
+        type="currency", precision=2
+    """
+    if not rsid:
+        raise ValueError("rsid must be a non-empty string")
+    if not name:
+        raise ValueError("name must be a non-empty string")
+    if operator not in VALID_CM_OPERATORS:
+        raise ValueError(f"operator must be one of {VALID_CM_OPERATORS}")
+    if polarity not in VALID_CM_POLARITY:
+        raise ValueError(f"polarity must be one of {VALID_CM_POLARITY}")
+    if type not in VALID_CM_TYPES:
+        raise ValueError(f"type must be one of {VALID_CM_TYPES}")
+    if not (0 <= precision <= 10):
+        raise ValueError("precision must be between 0 and 10")
+
+    return _run_r(
+        "create_calculated_metric",
+        rsid,
+        name,
+        description or "",
+        operator,
+        metric1,
+        metric2 if metric2 else "NA",
+        polarity,
+        str(precision),
+        type,
+    )
 
 
 # ---------------------------------------------------------------------------

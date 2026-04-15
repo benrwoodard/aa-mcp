@@ -25,15 +25,56 @@ suppressPackageStartupMessages({
   library(jsonlite)
 })
 
-# Authenticate once on startup using env vars
-# Set AW_AUTH_TYPE=s2s to use Server-to-Server auth (requires AW_AUTH_FILE)
-# Default is oauth (requires AW_CLIENT_ID + AW_CLIENT_SECRET)
-auth_type <- Sys.getenv("AW_AUTH_TYPE", unset = "oauth")
-if (auth_type == "s2s") {
-  aw_auth_with("s2s")
-  aw_auth()
+# Authenticate once on startup.
+#
+# Priority order:
+#   1. AW_ACCESS_TOKEN — injected by the Python MCP server (preferred path).
+#      Bypasses the interactive OAuth flow entirely; the Python layer handles
+#      token refresh before each Rscript invocation.
+#   2. AW_AUTH_TYPE=s2s — Server-to-Server, non-interactive.
+#   3. AW_AUTH_TYPE=oauth (default) — interactive browser login.
+
+access_token_env <- Sys.getenv("AW_ACCESS_TOKEN")
+
+if (nchar(access_token_env) > 0) {
+  # Build a minimal httr Token2.0 from the pre-validated access token and
+  # inject it into adobeanalyticsr's internal session environment so all
+  # subsequent API calls use it without triggering a browser redirect.
+  suppressPackageStartupMessages(library(httr))
+  .app <- oauth_app("adobe_analytics_v2.0",
+    key    = Sys.getenv("AW_CLIENT_ID"),
+    secret = Sys.getenv("AW_CLIENT_SECRET"))
+  .endpoint <- oauth_endpoint(
+    authorize = "authorize/v2/",
+    access    = "token/v3",
+    base_url  = "https://ims-na1.adobelogin.com/ims")
+  .token <- Token2.0$new(
+    app         = .app,
+    endpoint    = .endpoint,
+    params      = list(
+      scope     = "openid,AdobeID,read_organizations,additional_info.projectedProductContext,additional_info.job_function",
+      as_header = TRUE),
+    credentials = list(access_token = access_token_env, token_type = "bearer"),
+    cache_path  = FALSE)
+  # Register "oauth" as the active auth type (required by get_env_vars / aw_call_api)
+  aw_auth_with("oauth")
+  # Write directly into the package-private session store.
+  # .adobeanalytics lives in the package namespace; Token2.0 is what
+  # token_type() and get_token_config() expect for the "oauth" branch.
+  .aa <- get(".adobeanalytics", envir = asNamespace("adobeanalyticsr"))
+  .aa$token          <- .token
+  .aa$client_id      <- Sys.getenv("AW_CLIENT_ID")
+  .aa$client_secret  <- Sys.getenv("AW_CLIENT_SECRET")
+  rm(.app, .endpoint, .token, .aa)
+
 } else {
-  aw_auth(type = "oauth")
+  auth_type <- Sys.getenv("AW_AUTH_TYPE", unset = "oauth")
+  if (auth_type == "s2s") {
+    aw_auth_with("s2s")
+    aw_auth()
+  } else {
+    aw_auth(type = "oauth")
+  }
 }
 
 args <- commandArgs(trailingOnly = TRUE)

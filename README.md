@@ -25,6 +25,12 @@ install.packages(c("adobeanalyticsr", "jsonlite"))
 
 2. **Add to your Claude Code `settings.json`** — pick one auth method:
 
+   The settings file lives at:
+   - **Windows:** `C:\Users\<you>\.claude\settings.json`
+   - **Mac/Linux:** `~/.claude/settings.json`
+
+   Create it if it doesn't exist yet.
+
    **OAuth** (default — interactive browser login, good for personal use):
    ```json
    {

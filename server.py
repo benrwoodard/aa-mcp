@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Optional
 from fastmcp import FastMCP
+import auth as _auth
 
 mcp = FastMCP("Adobe Analytics MCP Server")
 
@@ -51,10 +52,25 @@ def _rscript_path() -> str:
 
 
 def _run_r(command: str, *args: str) -> dict | list:
-    """Shell out to run_report.R and return parsed JSON."""
+    """Shell out to run_report.R and return parsed JSON.
+
+    When AW_AUTH_TYPE is oauth (the default), fetches a valid access token
+    from the Python auth layer and injects it as AW_ACCESS_TOKEN so the R
+    script can authenticate without any browser interaction.
+    """
     r_script = os.path.join(os.path.dirname(__file__), "run_report.R")
     cmd = [_rscript_path(), r_script, command] + list(args)
-    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    env = os.environ.copy()
+    if env.get("AW_AUTH_TYPE", "oauth") == "oauth":
+        try:
+            env["AW_ACCESS_TOKEN"] = _auth.get_valid_token()
+        except RuntimeError as exc:
+            raise RuntimeError(
+                f"Adobe Analytics is not authenticated. {exc}"
+            ) from exc
+
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
     if result.returncode != 0:
         stderr = result.stderr.strip()
         raise RuntimeError(f"R error: {stderr}")
@@ -90,6 +106,57 @@ def _parse_csv(value: str, label: str, max_count: int) -> list[str]:
     if len(items) > max_count:
         raise ValueError(f"Maximum {max_count} {label}s allowed, got {len(items)}")
     return items
+
+
+# ---------------------------------------------------------------------------
+# Tools — Authentication
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_auth_url() -> str:
+    """Get the Adobe OAuth login URL to authenticate with Adobe Analytics.
+
+    Visit the returned URL in your browser, log in with your Adobe ID,
+    and you will be redirected to a page showing an authorization code.
+    Paste that code into complete_auth() to finish connecting.
+
+    Returns:
+        str: Adobe OAuth authorization URL.
+    """
+    return _auth.get_auth_url()
+
+
+@mcp.tool()
+def complete_auth(code: str) -> dict:
+    """Complete OAuth authentication with the code from the Adobe login redirect.
+
+    After visiting the URL from get_auth_url() and logging in, copy the
+    authorization code shown on the page and pass it here.  The server
+    stores the resulting tokens and auto-refreshes them on every request.
+
+    Args:
+        code: Authorization code from the adobeanalyticsr.com/token_result.html page.
+
+    Returns:
+        dict: Authentication status including token expiry.
+    """
+    tokens = _auth.exchange_code(code)
+    expires_in = int(tokens["expires_at"] - __import__("time").time())
+    return {
+        "status": "authenticated",
+        "expires_in_seconds": expires_in,
+        "message": "Successfully authenticated. Token will auto-refresh before each request.",
+    }
+
+
+@mcp.tool()
+def auth_status() -> dict:
+    """Check whether the server is currently authenticated with Adobe Analytics.
+
+    Returns:
+        dict: Authentication state and token validity info.
+    """
+    return _auth.auth_status()
 
 
 # ---------------------------------------------------------------------------

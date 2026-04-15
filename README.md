@@ -23,54 +23,28 @@ install.packages(c("adobeanalyticsr", "jsonlite"))
    cd aa_mcp
    ```
 
-2. **Add to your Claude Code `settings.json`** — pick one auth method:
+2. **Configure your settings file** — copy the appropriate example for your auth method:
 
-   The settings file lives at:
-   - **Windows:** `C:\Users\<you>\.claude\settings.json`
-   - **Mac/Linux:** `~/.claude/settings.json`
+   | Auth method | Copy this file |
+   |-------------|---------------|
+   | OAuth (browser login) | `settings.oauth.example.json` |
+   | Server-to-Server / S2S | `settings.s2s.example.json` |
 
-   Create it if it doesn't exist yet.
+   Fill in the `REPLACE_*` placeholders, then place the file at:
 
-   **OAuth** (default — interactive browser login, good for personal use):
-   ```json
-   {
-     "mcpServers": {
-       "adobe-analytics": {
-         "command": "uv",
-         "args": ["--directory", "/path/to/aa_mcp", "run", "server.py"],
-         "env": {
-           "AW_CLIENT_ID": "your-client-id",
-           "AW_CLIENT_SECRET": "your-client-secret",
-           "AW_COMPANY_ID": "your-company-id"
-         }
-       }
-     }
-   }
-   ```
+   | Client | Settings file location |
+   |--------|----------------------|
+   | **Claude Code** | `~/.claude/settings.json` (Mac/Linux) · `C:\Users\<you>\.claude\settings.json` (Windows) |
+   | **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac) · `%APPDATA%\Claude\claude_desktop_config.json` (Windows) |
 
-   **Server-to-Server / S2S** (non-interactive, good for teams and automation):
-   ```json
-   {
-     "mcpServers": {
-       "adobe-analytics": {
-         "command": "uv",
-         "args": ["--directory", "/path/to/aa_mcp", "run", "server.py"],
-         "env": {
-           "AW_AUTH_TYPE": "s2s",
-           "AW_AUTH_FILE": "/path/to/adobe-credentials.json",
-           "AW_COMPANY_ID": "your-company-id"
-         }
-       }
-     }
-   }
-   ```
+   Both clients use the same JSON format — the only difference is the file location.
 
-   The S2S credentials JSON is downloaded from the Adobe Developer Console:
-   **Console → your project → OAuth Server-to-Server → Download JSON**
+   > **S2S only:** the credentials JSON is downloaded from the Adobe Developer Console:
+   > **Console → your project → OAuth Server-to-Server → Download JSON**
+   >
+   > On Windows use double-backslash paths, e.g. `C:\\Users\\you\\aa-mcp`.
 
-   On Windows use backslash paths, e.g. `C:\\Users\\you\\aa_mcp`.
-
-3. **Restart Claude Code** — the server will start automatically.
+3. **Restart Claude / Claude Code** — the MCP server starts automatically.
 
 ## Tools
 

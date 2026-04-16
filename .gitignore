@@ -1,22 +1,19 @@
 # OAuth token cache — contains credentials, never commit
 *.oauth
 .oauth
-
+.tokens.json
 # S2S credentials JSON downloaded from Adobe Developer Console
 adobe-credentials*.json
-
 # Filled-in settings files — contain real paths and credentials, never commit
 # Use settings.oauth.example.json or settings.s2s.example.json as your starting point
 settings.json
 claude_desktop_config.json
-
 # Local environment variables
 .env
-
 # Python virtualenv
 .venv/
-
 # R session artifacts
 .Rhistory
 .RData
 .Rproj.user/
+/Users/benwoodard/aa-mcp/aa.oauth

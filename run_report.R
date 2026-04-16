@@ -258,6 +258,20 @@ if (command == "list_report_suites") {
   cat(toJSON(report, auto_unbox = TRUE, dataframe = "rows"))
 
 # ---------------------------------------------------------------------------
+# list_projects  args: rsid (or NA)
+# ---------------------------------------------------------------------------
+} else if (command == "list_projects") {
+  rsid_arg <- if (length(args) >= 2 && args[2] != "NA") args[2] else NULL
+  projects <- aw_get_projects(
+    company_id  = Sys.getenv("AW_COMPANY_ID"),
+    limit       = 100,
+    page        = 0,
+    includeType = "all"
+  )
+  cols <- intersect(c("id", "name", "description", "rsid", "owner"), colnames(projects))
+  cat(toJSON(projects[, cols], auto_unbox = TRUE, dataframe = "rows"))
+
+# ---------------------------------------------------------------------------
 # list_users  (no extra args)
 # ---------------------------------------------------------------------------
 } else if (command == "list_users") {

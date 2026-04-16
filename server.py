@@ -173,6 +173,19 @@ def list_calculated_metrics(rsid: Optional[str] = None) -> list:
 
 
 @mcp.tool()
+def list_projects(rsid: Optional[str] = None) -> list:
+    """List available Analysis Workspace projects, optionally filtered to a report suite.
+
+    Args:
+        rsid: Optional report suite ID to filter projects. Omit to list all.
+
+    Returns:
+        list: Project objects with id, name, description, rsid, and owner fields.
+    """
+    return _run_r("list_projects", rsid if rsid else "NA")
+
+
+@mcp.tool()
 def get_cm_functions() -> list:
     """List all available functions that can be used in calculated metrics
     (e.g. col-sum, col-max, mean, variance, etc.).

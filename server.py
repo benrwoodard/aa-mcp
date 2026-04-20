@@ -530,5 +530,24 @@ Steps:
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _warmup_r() -> None:
+    """Spawn a throwaway Rscript to pre-load adobeanalyticsr + deps in the
+    background.  R's first-time package load on Windows can take 30–60s,
+    which exceeds the MCP client's default request timeout.  Running this
+    once at boot warms the OS file cache and R's package namespace so the
+    first real tool call responds in ~2s instead of timing out.
+    """
+    try:
+        subprocess.Popen(
+            [_rscript_path(), "-e",
+             "suppressPackageStartupMessages({library(adobeanalyticsr); library(jsonlite); library(httr)})"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass  # Warm-up is best-effort; don't block startup on failure
+
+
 if __name__ == "__main__":
+    _warmup_r()
     mcp.run(transport="stdio")

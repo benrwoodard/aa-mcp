@@ -5,8 +5,7 @@
       "args": ["--directory", "/REPLACE/path/to/aa-mcp", "run", "server.py"],
       "env": {
         "AW_AUTH_TYPE": "s2s",
-        "AW_CLIENT_ID": "REPLACE_YOUR_CLIENT_ID",
-        "AW_CLIENT_SECRET": "REPLACE_YOUR_CLIENT_SECRET",
+        "AW_AUTH_FILE": "/REPLACE/path/to/adobe-credentials.json",
         "AW_COMPANY_ID": "REPLACE_YOUR_COMPANY_ID"
       }
     }

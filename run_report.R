@@ -14,8 +14,9 @@
 #     Python layer bootstraps tokens automatically on first request.
 #
 #   Server-to-Server (S2S):
-#     AW_AUTH_TYPE=s2s, AW_CLIENT_ID, AW_CLIENT_SECRET, AW_COMPANY_ID
-#     aw_auth_with("s2s") + aw_auth() read credentials from env vars directly.
+#     AW_AUTH_TYPE=s2s, AW_AUTH_FILE=/path/to/credentials.json, AW_COMPANY_ID
+#     Download the credentials JSON from Adobe Developer Console and set
+#     AW_AUTH_FILE to its path in settings.json.
 
 suppressPackageStartupMessages({
   library(adobeanalyticsr)

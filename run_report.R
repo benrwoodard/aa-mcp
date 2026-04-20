@@ -3,22 +3,19 @@
 # Thin wrapper around adobeanalyticsr for MCP server
 # Accepts CLI args, authenticates via env vars, outputs JSON to stdout
 #
-# Authentication (choose one):
+# Authentication — set via env vars in settings.json (choose one):
 #
-#   OAuth (default):
-#     AW_AUTH_TYPE     = "oauth"  (or omit — this is the default)
-#     AW_CLIENT_ID     - Adobe OAuth client ID
-#     AW_CLIENT_SECRET - Adobe OAuth client secret
+#   OAuth (browser, one-time):
+#     AW_CLIENT_ID, AW_CLIENT_SECRET, AW_COMPANY_ID
+#     Then call get_auth_url / complete_auth tools to store tokens.
+#
+#   OAuth (pre-seeded, no browser):
+#     AW_CLIENT_ID, AW_CLIENT_SECRET, AW_COMPANY_ID, AW_REFRESH_TOKEN
+#     Python layer bootstraps tokens automatically on first request.
 #
 #   Server-to-Server (S2S):
-#     AW_AUTH_TYPE     = "s2s"
-#     AW_AUTH_FILE     - Path to credentials JSON downloaded from Adobe Developer Console
-#
-# Required for all auth types:
-#   AW_COMPANY_ID      - Adobe Analytics company ID
-#
-# Optional:
-#   AW_REPORTSUITE_ID  - Default report suite (not used here; rsid passed explicitly)
+#     AW_AUTH_TYPE=s2s, AW_CLIENT_ID, AW_CLIENT_SECRET, AW_COMPANY_ID
+#     aw_auth_with("s2s") + aw_auth() read credentials from env vars directly.
 
 suppressPackageStartupMessages({
   library(adobeanalyticsr)
@@ -28,10 +25,9 @@ suppressPackageStartupMessages({
 # Authenticate once on startup.
 #
 # Priority order:
-#   1. AW_ACCESS_TOKEN — injected by the Python MCP server (preferred path).
-#      Bypasses the interactive OAuth flow entirely; the Python layer handles
-#      token refresh before each Rscript invocation.
-#   2. AW_AUTH_TYPE=s2s — Server-to-Server, non-interactive.
+#   1. AW_ACCESS_TOKEN — injected by the Python layer for OAuth paths.
+#      Bypasses interactive flow; Python handles refresh before each invocation.
+#   2. AW_AUTH_TYPE=s2s — aw_auth() reads AW_CLIENT_ID/AW_CLIENT_SECRET from env.
 #   3. AW_AUTH_TYPE=oauth (default) — interactive browser login.
 
 access_token_env <- Sys.getenv("AW_ACCESS_TOKEN")

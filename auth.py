@@ -1,11 +1,17 @@
 """OAuth token management for the Adobe Analytics MCP server.
 
-Flow:
-  1. get_auth_url()     → send URL to user
-  2. user logs in, lands on adobeanalyticsr.com/token_result.html, copies the code
-  3. exchange_code(code) → stores access + refresh tokens in .tokens.json
-  4. _run_r() calls get_valid_token() before each Rscript invocation;
-     token is auto-refreshed when it's within 5 minutes of expiry.
+Two auth paths — all configured via env vars in settings.json:
+
+  OAuth (interactive, one-time setup):
+    AW_CLIENT_ID, AW_CLIENT_SECRET, AW_COMPANY_ID
+    1. get_auth_url() → user visits URL, logs in, copies code
+    2. exchange_code(code) → stores tokens in .tokens.json; auto-refreshes forever
+
+  OAuth (pre-seeded, no browser needed):
+    AW_CLIENT_ID, AW_CLIENT_SECRET, AW_COMPANY_ID, AW_REFRESH_TOKEN
+    get_valid_token() bootstraps from AW_REFRESH_TOKEN on first call.
+
+S2S auth is handled entirely by the R layer (adobeanalyticsr::aw_auth_with/aw_auth).
 """
 
 import json
@@ -62,25 +68,34 @@ def exchange_code(code: str) -> dict:
 
 
 def get_valid_token() -> str:
-    """Return a valid access token, refreshing silently if needed.
+    """Return a valid OAuth access token, refreshing silently if needed.
+
+    If no .tokens.json exists but AW_REFRESH_TOKEN is set in the environment,
+    bootstraps automatically without any browser interaction.
 
     Raises:
         RuntimeError: if not authenticated or refresh fails.
     """
     tokens = _load_tokens()
+
     if not tokens:
-        raise RuntimeError(
-            "Not authenticated. Use get_auth_url() to get a login link, "
-            "then complete_auth() with the code shown after you log in."
-        )
+        env_refresh = os.environ.get("AW_REFRESH_TOKEN", "")
+        if env_refresh:
+            tokens = _refresh(env_refresh)
+        else:
+            raise RuntimeError(
+                "Not authenticated. Use get_auth_url() to get a login link, "
+                "then complete_auth() with the code shown after you log in. "
+                "Alternatively, set AW_REFRESH_TOKEN in your settings.json env."
+            )
 
     # Refresh 5 minutes before expiry to avoid clock-skew issues
     if time.time() > tokens["expires_at"] - 300:
-        refresh = tokens.get("refresh_token")
+        refresh = tokens.get("refresh_token") or os.environ.get("AW_REFRESH_TOKEN", "")
         if not refresh:
             raise RuntimeError(
                 "Access token expired and no refresh token is available. "
-                "Re-authenticate via get_auth_url()."
+                "Re-authenticate via get_auth_url() or set AW_REFRESH_TOKEN."
             )
         tokens = _refresh(refresh)
 

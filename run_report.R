@@ -67,10 +67,16 @@ if (nchar(access_token_env) > 0) {
 } else {
   auth_type <- Sys.getenv("AW_AUTH_TYPE", unset = "oauth")
   if (auth_type == "s2s") {
+    auth_file <- Sys.getenv("AW_AUTH_FILE", unset = "")
+    if (nchar(auth_file) == 0) stop("AW_AUTH_FILE must be set for S2S auth")
+    if (!file.exists(auth_file)) stop(paste("AW_AUTH_FILE not found:", auth_file))
     aw_auth_with("s2s")
-    aw_auth()
+    aw_auth(path = auth_file)
   } else {
-    aw_auth(type = "oauth")
+    # AW_ACCESS_TOKEN should always be injected by the Python layer for OAuth;
+    # reaching here means the Python auth layer failed to provide a token.
+    stop("AW_ACCESS_TOKEN is not set — Python auth layer did not inject a token. ",
+         "Call get_auth_url / complete_auth or set AW_REFRESH_TOKEN in settings.json.")
   }
 }
 

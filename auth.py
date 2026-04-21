@@ -104,12 +104,28 @@ def get_valid_token() -> str:
 
 def auth_status() -> dict:
     """Return current authentication status."""
+    auth_type = os.environ.get("AW_AUTH_TYPE", "oauth")
+    if auth_type == "s2s":
+        auth_file = os.environ.get("AW_AUTH_FILE", "")
+        return {
+            "authenticated": bool(auth_file and os.path.exists(auth_file)),
+            "auth_type": "s2s",
+            "auth_file": auth_file or None,
+            "auth_file_exists": bool(auth_file and os.path.exists(auth_file)),
+        }
+
     tokens = _load_tokens()
     if not tokens:
-        return {"authenticated": False}
+        env_refresh = os.environ.get("AW_REFRESH_TOKEN", "")
+        return {
+            "authenticated": False,
+            "auth_type": "oauth",
+            "hint": "pre-seeded refresh token present — will bootstrap on first request" if env_refresh else None,
+        }
     expires_in = int(tokens["expires_at"] - time.time())
     return {
         "authenticated": True,
+        "auth_type": "oauth",
         "expires_in_seconds": max(expires_in, 0),
         "token_valid": expires_in > 0,
     }
@@ -159,10 +175,24 @@ def _refresh(refresh_token: str) -> dict:
     return tokens
 
 
+def _restrict_file(path: str) -> None:
+    """Restrict file to owner-only access (cross-platform)."""
+    if os.name == "nt":
+        import subprocess
+        username = os.environ.get("USERNAME", "")
+        if username:
+            subprocess.run(
+                ["icacls", path, "/inheritance:r", "/grant:r", f"{username}:(R,W)"],
+                capture_output=True,
+            )
+    else:
+        os.chmod(path, 0o600)
+
+
 def _save_tokens(tokens: dict) -> None:
     with open(_TOKEN_FILE, "w") as f:
         json.dump(tokens, f, indent=2)
-    os.chmod(_TOKEN_FILE, 0o600)
+    _restrict_file(_TOKEN_FILE)
 
 
 def _load_tokens() -> dict | None:
